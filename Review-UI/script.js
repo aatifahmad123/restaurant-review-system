@@ -1,5 +1,13 @@
 import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
-const client = await Client.connect("aatifahmad-jodhpur/restaurant_reviews");
+
+let client = null;
+
+async function getClient() {
+    if (!client) {
+        client = await Client.connect("aatifahmad-jodhpur/restaurant_reviews");
+    }
+    return client;
+}
 
 
 const indianDishes = [
@@ -227,9 +235,12 @@ async function submitReviews() {
     showMessage('Analyzing reviews...', 'info');
 
     try {
+
+        const gradioClient = await getClient(); // Get client here instead
+
         // Get predictions for all reviews
         const predictionsPromises = reviews.map(review => 
-            client.predict("/predict", { review: review.review })
+            gradioClient.predict("/predict", { review: review.review })
         );
         
         const predictions = await Promise.all(predictionsPromises);
@@ -289,7 +300,8 @@ function showMessage(text, type) {
     messageDiv.style.display = 'block';
 }
 
-setDishesCount();
-initializeDishes();
-
-document.getElementById('submitBtn').addEventListener('click', submitReviews);
+document.addEventListener('DOMContentLoaded', () => {
+    setDishesCount();
+    initializeDishes();
+    document.getElementById('submitBtn').addEventListener('click', submitReviews);
+});
