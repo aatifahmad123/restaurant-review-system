@@ -1,3 +1,7 @@
+import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js";
+const client = await Client.connect("aatifahmad-jodhpur/restaurant_reviews");
+
+
 const indianDishes = [
     { name: "Butter Chicken", category: "North Indian" },
     { name: "Paneer Tikka", category: "North Indian" },
@@ -186,7 +190,7 @@ document.getElementById('searchBox').addEventListener('input', (e) => {
     });
 });
 
-function submitReviews() {
+async function submitReviews() {
     const messageDiv = document.getElementById('message');
 
     if (selectedDishes.size === 0) {
@@ -218,29 +222,48 @@ function submitReviews() {
     }
 
     console.log('Submitting reviews:', reviews);
+    
+    // Show analyzing message
+    showMessage('Analyzing reviews...', 'info');
 
-    // TODO: Get the model outputs for all the reviews
+    try {
+        // Get predictions for all reviews
+        const predictionsPromises = reviews.map(review => 
+            client.predict("/predict", { review: review.review })
+        );
+        
+        const predictions = await Promise.all(predictionsPromises);
 
-    // Prepare data for SheetDB
-    const sheetData = reviews.map(review => ({
-        'Dish Name': review.dish,
-        'Review': review.review,
-        'Label': 'Positive'
-    }));
+        console.log('Predictions:', predictions);
 
-    // Send to SheetDB
-    fetch('https://sheetdb.io/api/v1/ld6voxw8a2p1d', {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            data: sheetData
-        })
-    })
-    .then((response) => response.json())
-    .then((data) => {
+        // Prepare data for SheetDB
+        const sheetData = reviews.map((review, idx) => {
+            // Access the prediction data correctly
+            const predictionData = predictions[idx].data[0];
+            const predictedLabel = predictionData['Predicted Label'];
+            
+            return {
+                'Dish Name': review.dish,
+                'Review': review.review,
+                'Label': predictedLabel.charAt(0).toUpperCase() + predictedLabel.slice(1) // Capitalize first letter
+            };
+        });
+
+        console.log('Sheet data:', sheetData);
+
+        // Send to SheetDB
+        const response = await fetch('https://sheetdb.io/api/v1/ld6voxw8a2p1d', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                data: sheetData
+            })
+        });
+
+        const data = await response.json();
         console.log('SheetDB response:', data);
         showMessage(`Successfully submitted ${reviews.length} review(s)!`, 'success');
 
@@ -252,12 +275,11 @@ function submitReviews() {
             updateStats();
             messageDiv.style.display = 'none';
         }, 2000);
-    })
-    .catch((error) => {
-        console.error('Error saving to SheetDB:', error);
-        showMessage('Failed to save reviews. Please try again.', 'error');
-    });
 
+    } catch (error) {
+        console.error('Error:', error);
+        showMessage('Failed to process reviews. Please try again.', 'error');
+    }
 }
 
 function showMessage(text, type) {
@@ -269,3 +291,6 @@ function showMessage(text, type) {
 
 setDishesCount();
 initializeDishes();
+
+// At the end of your JS file, add:
+window.submitReviews = submitReviews;
