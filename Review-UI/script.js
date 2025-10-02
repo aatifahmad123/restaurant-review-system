@@ -292,5 +292,4 @@ function showMessage(text, type) {
 setDishesCount();
 initializeDishes();
 
-// At the end of your JS file, add:
-window.submitReviews = submitReviews;
+document.getElementById('submitBtn').addEventListener('click', submitReviews);
